@@ -1,7 +1,7 @@
 import math
 from dataclasses import dataclass, field
 from pathlib import Path
-
+from typing import TextIO
 
 _parsers = {}
 
@@ -132,6 +132,10 @@ class EffiFileWriter:
     final_sizes: tuple[int, ...] = field(
         init=False
     )
+    active_file: TextIO = field(
+        init=None,
+        default=None
+    )
 
     def __post_init__(self):
         self.final_sizes = self.file.schema.get_final_field_sizes()
@@ -159,8 +163,25 @@ class EffiFileWriter:
         num_bytes = len(bits) // 8
         bytes_ = n.to_bytes(num_bytes, 'big', signed=False)
 
-        with self.file.path.open(mode='ab') as f:
-            f.write(bytes_)
+        if self.active_file is None:
+            self.open_file(mode='ab')
+            close_after_write = True
+
+        else:
+            close_after_write = False
+
+        self.active_file.write(bytes_)
+
+        if close_after_write:
+            self.close_file()
+
+    def open_file(self, *args, **kwargs):
+        assert self.active_file is None, 'file already open'
+        self.active_file = self.file.path.open(*args, **kwargs)
+
+    def close_file(self):
+        self.active_file.close()
+        self.active_file = None
 
 
 def bit_length_of_decimal(max_n: int):
